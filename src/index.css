@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  --font-press-start: "Press Start 2P", system-ui;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #000;
+  color: #fff;
+  font-family: var(--font-press-start);
+  overflow: hidden;
+  image-rendering: pixelated;
+}
+
+/* Custom 8-bit styles */
+.pixel-border {
+  border: 4px solid #fff;
+  box-shadow: 
+    -4px 0 0 0 #000,
+    4px 0 0 0 #000,
+    0 -4px 0 0 #000,
+    0 4px 0 0 #000;
+}
+
+.pixel-text-shadow {
+  text-shadow: 2px 2px #000;
+}

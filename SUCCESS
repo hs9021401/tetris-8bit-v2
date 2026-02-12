@@ -1,0 +1,31 @@
+# SUCCESS - 8-Bit Tetris v2 Development Complete
+
+## 主要功能點:
+1. **技術棧**: React.js + Tailwind CSS (v4) + Vite.
+2. **8-bit 視覺風格**: 
+   - 使用 'Press Start 2P' 復古字體。
+   - 像素化邊框與霓虹配色。
+   - 區塊使用內陰影模擬立體像素質感。
+3. **流暢動畫**: 
+   - 採用 CSS `transition-all duration-100` 處理方塊移動，確保視覺上無明顯跳動，極致流暢。
+   - 使用 `requestAnimationFrame` 概念的狀態更新邏輯。
+4. **8-bit 音效系統**: 
+   - 基於 Web Audio API 自主生成的 8-bit 合成音。
+   - 包含背景音樂 (BGM)、移動音效、旋轉音效、落地音效、消除音效及遊戲結束音效。
+5. **完整遊戲邏輯**:
+   - 七種經典方塊 (I, J, L, O, S, T, Z)。
+   - 碰撞檢測、旋轉系統、硬降 (Hard Drop)。
+   - 消行計分系統與自動升級難度 (速度提升)。
+   - 暫停功能與下一個方塊預覽。
+6. **環境適配**: 檔案已正確寫入 `/home/kai/Project/tetris-8bit-v2`。
+
+## 操作說明:
+- **方向鍵左/右**: 移動方塊
+- **方向鍵上**: 旋轉方塊
+- **方向鍵下**: 加速下落
+- **空格鍵**: 瞬間落地 (Hard Drop)
+- **P 鍵**: 暫停/恢復遊戲
+Bugfix: 修正 Hard Drop 邏輯
+Optimization: 優化 BGM 與新增 Ghost Piece
+Final Polish: 替換 MP3 BGM、同步暫停邏輯、優化移動靈敏度
+Final Optimization: 修復 SFX 共存、極致提升移動靈敏度
