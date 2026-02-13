@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useTetris } from './useTetris';
 import { COLS, ROWS, BLOCK_SIZE } from './Constants';
 
-const Tetris = () => {
+const Tetris = ({ multiplayer, onStateChange, onAttack, socket }) => {
   const {
     grid,
     activePiece,
@@ -17,7 +17,24 @@ const Tetris = () => {
     rotatePiece,
     hardDrop,
     startGame,
-  } = useTetris();
+    receiveAttack,
+  } = useTetris(onStateChange, onAttack);
+
+  useEffect(() => {
+    if (multiplayer && socket) {
+      const handleGetAttacked = ({ lines }) => {
+        receiveAttack(lines);
+      };
+      socket.on('get_attacked', handleGetAttacked);
+      
+      // Auto start in multiplayer
+      startGame();
+
+      return () => {
+        socket.off('get_attacked', handleGetAttacked);
+      };
+    }
+  }, [multiplayer, socket, receiveAttack, startGame]);
 
   useEffect(() => {
     const keysPressed = {};
@@ -27,9 +44,9 @@ const Tetris = () => {
       ArrowDown: 0
     };
 
-    const MOVE_DELAY = 100; // DAS: Even snappier
-    const MOVE_REPEAT = 20; // ARR: Even faster
-    const SOFT_DROP_REPEAT = 15; // Snappy soft drop
+    const MOVE_DELAY = 100;
+    const MOVE_REPEAT = 20;
+    const SOFT_DROP_REPEAT = 15;
 
     const handleKeyDown = (e) => {
       if (gameOver) return;
@@ -64,7 +81,7 @@ const Tetris = () => {
           break;
         case 'p':
         case 'P':
-          setPaused(prev => !prev);
+          if (!multiplayer) setPaused(prev => !prev);
           break;
         default:
           break;
@@ -80,19 +97,16 @@ const Tetris = () => {
 
       const now = Date.now();
       
-      // Horizontal Movement
       ['ArrowLeft', 'ArrowRight'].forEach(key => {
         if (keysPressed[key]) {
           const elapsed = now - lastActionTime[key];
           if (elapsed >= MOVE_DELAY) {
             movePiece(key === 'ArrowLeft' ? -1 : 1, 0);
-            // After the first auto-repeat (DAS), subsequent repeats happen every MOVE_REPEAT
             lastActionTime[key] = now - (MOVE_DELAY - MOVE_REPEAT);
           }
         }
       });
 
-      // Soft Drop
       if (keysPressed['ArrowDown']) {
         const elapsed = now - lastActionTime['ArrowDown'];
         if (elapsed >= SOFT_DROP_REPEAT) {
@@ -102,7 +116,7 @@ const Tetris = () => {
       }
     };
 
-    const interval = setInterval(moveLoop, 16); // ~60fps check
+    const interval = setInterval(moveLoop, 16);
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
@@ -111,7 +125,7 @@ const Tetris = () => {
       window.removeEventListener('keyup', handleKeyUp);
       clearInterval(interval);
     };
-  }, [movePiece, rotatePiece, hardDrop, gameOver, paused, setPaused]);
+  }, [movePiece, rotatePiece, hardDrop, gameOver, paused, setPaused, multiplayer]);
 
   const renderGrid = () => {
     return grid.map((row, y) =>
@@ -124,7 +138,7 @@ const Tetris = () => {
             height: BLOCK_SIZE,
             left: x * BLOCK_SIZE,
             top: y * BLOCK_SIZE,
-            backgroundColor: cell || 'transparent',
+            backgroundColor: cell === 'gray' ? '#666' : (cell || 'transparent'),
             boxShadow: cell ? 'inset 2px 2px 0px rgba(255,255,255,0.3), inset -2px -2px 0px rgba(0,0,0,0.3)' : 'none',
           }}
         />
@@ -209,11 +223,10 @@ const Tetris = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4">
-      <h1 className="text-4xl mb-8 pixel-text-shadow text-yellow-400">TETRIS 8-BIT</h1>
+    <div className={`flex flex-col items-center justify-center ${multiplayer ? '' : 'min-h-screen'} bg-black text-white p-4`}>
+      {!multiplayer && <h1 className="text-4xl mb-8 pixel-text-shadow text-yellow-400">TETRIS 8-BIT</h1>}
       
-      <div className="flex gap-8">
-        {/* Game Board */}
+      <div className="flex gap-8 scale-90 sm:scale-100">
         <div 
           className="relative pixel-border bg-gray-900 overflow-hidden"
           style={{ width: COLS * BLOCK_SIZE, height: ROWS * BLOCK_SIZE }}
@@ -222,15 +235,17 @@ const Tetris = () => {
           {renderGhostPiece()}
           {renderActivePiece()}
           
-          {(gameOver || !activePiece) && (
+          {(gameOver || (!activePiece && !multiplayer)) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-50">
               {gameOver && <h2 className="text-2xl text-red-500 mb-4">GAME OVER</h2>}
-              <button 
-                onClick={startGame}
-                className="px-6 py-3 bg-green-600 hover:bg-green-500 pixel-border cursor-pointer transition-colors"
-              >
-                {gameOver ? 'RETRY' : 'START'}
-              </button>
+              {!multiplayer && (
+                <button 
+                  onClick={startGame}
+                  className="px-6 py-3 bg-green-600 hover:bg-green-500 pixel-border cursor-pointer transition-colors"
+                >
+                  {gameOver ? 'RETRY' : 'START'}
+                </button>
+              )}
             </div>
           )}
 
@@ -241,30 +256,31 @@ const Tetris = () => {
           )}
         </div>
 
-        {/* Sidebar */}
         <div className="flex flex-col gap-6">
           <div className="pixel-border p-4 bg-gray-800">
-            <h3 className="text-sm mb-2 text-gray-400">NEXT</h3>
-            <div className="flex items-center justify-center h-24 w-24 bg-black/50">
+            <h3 className="text-xs mb-2 text-gray-400">NEXT</h3>
+            <div className="flex items-center justify-center h-20 w-20 bg-black/50">
               {renderNextPiece()}
             </div>
           </div>
 
           <div className="pixel-border p-4 bg-gray-800">
-            <h3 className="text-sm mb-2 text-gray-400">SCORE</h3>
-            <p className="text-xl text-yellow-400">{score.toString().padStart(6, '0')}</p>
+            <h3 className="text-xs mb-2 text-gray-400">SCORE</h3>
+            <p className="text-lg text-yellow-400">{score.toString().padStart(6, '0')}</p>
           </div>
 
           <div className="pixel-border p-4 bg-gray-800">
-            <h3 className="text-sm mb-2 text-gray-400">LEVEL</h3>
-            <p className="text-xl text-blue-400">{level}</p>
+            <h3 className="text-xs mb-2 text-gray-400">LEVEL</h3>
+            <p className="text-lg text-blue-400">{level}</p>
           </div>
 
-          <div className="mt-auto text-[10px] text-gray-500 leading-relaxed">
-            ARROWS: MOVE & ROTATE<br />
-            SPACE: HARD DROP<br />
-            P: PAUSE
-          </div>
+          {!multiplayer && (
+              <div className="mt-auto text-[10px] text-gray-500 leading-relaxed">
+                ARROWS: MOVE & ROTATE<br />
+                SPACE: HARD DROP<br />
+                P: PAUSE
+              </div>
+          )}
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@ import { audio } from './audio';
 
 const createEmptyGrid = () => Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 
-export const useTetris = () => {
+export const useTetris = (onStateChange, onAttack) => {
   const [grid, setGrid] = useState(createEmptyGrid());
   const [activePiece, setActivePiece] = useState(null);
   const [nextPiece, setNextPiece] = useState(null);
@@ -13,6 +13,7 @@ export const useTetris = () => {
   const [gameOver, setGameOver] = useState(false);
   const [paused, setPaused] = useState(false);
   const [ghostPos, setGhostPos] = useState({ x: 0, y: 0 });
+  const [incomingGarbage, setIncomingGarbage] = useState(0);
   
   const timerRef = useRef(null);
   const speedRef = useRef(INITIAL_DROP_SPEED);
@@ -63,25 +64,38 @@ export const useTetris = () => {
     setGhostPos({ x: piece.pos.x, y: newY });
   }, [checkCollision]);
 
-  const spawnPiece = useCallback(() => {
+  const spawnPiece = useCallback((currentGrid = grid) => {
     const piece = nextPiece || getRandomPiece();
     const next = getRandomPiece();
     setNextPiece(next);
     
-    if (checkCollision(piece.pos, piece.shape)) {
+    if (checkCollision(piece.pos, piece.shape, currentGrid)) {
       setGameOver(true);
       audio.stopBGM();
       audio.playGameOver();
       return;
     }
     setActivePiece(piece);
-    updateGhostPos(piece, grid);
+    updateGhostPos(piece, currentGrid);
   }, [nextPiece, getRandomPiece, checkCollision, updateGhostPos, grid]);
+
+  const addGarbageLines = useCallback((lines) => {
+    setGrid(prevGrid => {
+      const newGrid = prevGrid.slice(lines);
+      for (let i = 0; i < lines; i++) {
+        const garbageRow = Array(COLS).fill('gray');
+        const emptyCol = Math.floor(Math.random() * COLS);
+        garbageRow[emptyCol] = 0;
+        newGrid.push(garbageRow);
+      }
+      return newGrid;
+    });
+  }, []);
 
   const lockPiece = useCallback((pieceToLock = activePiece) => {
     if (!pieceToLock) return;
 
-    const newGrid = grid.map(row => [...row]);
+    let newGrid = grid.map(row => [...row]);
     pieceToLock.shape.forEach((row, y) => {
       row.forEach((value, x) => {
         if (value !== 0) {
@@ -107,19 +121,42 @@ export const useTetris = () => {
     }
 
     if (linesCleared > 0) {
-      setScore(prev => prev + [0, 100, 300, 500, 800][linesCleared] * level);
+      const newScore = score + [0, 100, 300, 500, 800][linesCleared] * level;
+      setScore(newScore);
       audio.playClear();
-      if (score > 0 && score % 1000 === 0) {
+      if (newScore > 0 && newScore % 1000 === 0) {
         setLevel(prev => prev + 1);
         speedRef.current = Math.max(MIN_DROP_SPEED, INITIAL_DROP_SPEED - (level * SPEED_INCREMENT));
       }
+      if (onAttack) onAttack(linesCleared);
     } else {
       audio.playLand();
     }
 
-    setGrid(filteredGrid);
-    spawnPiece();
-  }, [activePiece, grid, level, score, spawnPiece]);
+    // Process incoming garbage if any
+    if (incomingGarbage > 0) {
+        const linesToAdd = incomingGarbage;
+        const finalGrid = filteredGrid.slice(linesToAdd);
+        for (let i = 0; i < linesToAdd; i++) {
+            const garbageRow = Array(COLS).fill('gray');
+            const emptyCol = Math.floor(Math.random() * COLS);
+            garbageRow[emptyCol] = 0;
+            finalGrid.push(garbageRow);
+        }
+        setGrid(finalGrid);
+        setIncomingGarbage(0);
+        spawnPiece(finalGrid);
+    } else {
+        setGrid(filteredGrid);
+        spawnPiece(filteredGrid);
+    }
+  }, [activePiece, grid, level, score, spawnPiece, incomingGarbage, onAttack]);
+
+  useEffect(() => {
+    if (onStateChange) {
+      onStateChange({ grid, score, gameOver });
+    }
+  }, [grid, score, gameOver, onStateChange]);
 
   const movePiece = useCallback((dx, dy) => {
     if (gameOver || paused || !activePiece) return false;
@@ -170,7 +207,6 @@ export const useTetris = () => {
     if (paused) {
       audio.pauseBGM();
     } else {
-      // Only resume if the game has already started
       if (activePiece) {
         audio.resumeBGM();
       }
@@ -184,7 +220,7 @@ export const useTetris = () => {
     return () => clearInterval(timerRef.current);
   }, [drop, gameOver, paused]);
 
-  const startGame = () => {
+  const startGame = useCallback(() => {
     audio.init();
     audio.stopBGM();
     audio.startBGM();
@@ -193,12 +229,17 @@ export const useTetris = () => {
     setGameOver(false);
     setScore(0);
     setLevel(1);
+    setIncomingGarbage(0);
     speedRef.current = INITIAL_DROP_SPEED;
     const firstPiece = getRandomPiece();
     setActivePiece(firstPiece);
     setNextPiece(getRandomPiece());
     updateGhostPos(firstPiece, newGrid);
-  };
+  }, [getRandomPiece, updateGhostPos]);
+
+  const receiveAttack = useCallback((lines) => {
+      setIncomingGarbage(prev => prev + lines);
+  }, []);
 
   useEffect(() => {
     return () => audio.stopBGM();
@@ -213,10 +254,13 @@ export const useTetris = () => {
     gameOver,
     paused,
     ghostPos,
+    incomingGarbage,
     setPaused,
+    setGameOver,
     movePiece,
     rotatePiece,
     hardDrop,
     startGame,
+    receiveAttack,
   };
 };
