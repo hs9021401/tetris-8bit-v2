@@ -27,14 +27,17 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket }) => {
       };
       socket.on('get_attacked', handleGetAttacked);
       
-      // Auto start in multiplayer
-      startGame();
-
       return () => {
         socket.off('get_attacked', handleGetAttacked);
       };
     }
-  }, [multiplayer, socket, receiveAttack, startGame]);
+  }, [multiplayer, socket, receiveAttack]);
+
+  useEffect(() => {
+    if (multiplayer) {
+      startGame();
+    }
+  }, [multiplayer, startGame]);
 
   useEffect(() => {
     const keysPressed = {};
