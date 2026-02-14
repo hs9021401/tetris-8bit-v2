@@ -17,6 +17,7 @@ const MultiplayerLobby = () => {
   const [timeRemaining, setTimeRemaining] = useState(180);
   const [error, setError] = useState('');
   const [sensitivity, setSensitivity] = useState(DEFAULT_SENSITIVITY);
+  const [levelSpeedUp, setLevelSpeedUp] = useState(true);
 
   useEffect(() => {
     socket.emit('join_lobby');
@@ -25,32 +26,36 @@ const MultiplayerLobby = () => {
       setRooms(roomsList);
     });
 
-    socket.on('room_created', ({ roomId, players, sensitivity }) => {
+    socket.on('room_created', ({ roomId, players, sensitivity, levelSpeedUp }) => {
       setCurrentRoom(roomId);
       setPlayers(players);
       if (sensitivity) setSensitivity(sensitivity);
+      if (levelSpeedUp !== undefined) setLevelSpeedUp(levelSpeedUp);
     });
 
-    socket.on('player_joined', ({ players, sensitivity: roomSensitivity }) => {
+    socket.on('player_joined', ({ players, sensitivity: roomSensitivity, levelSpeedUp }) => {
       setPlayers(players);
       if (roomSensitivity) setSensitivity(roomSensitivity);
+      if (levelSpeedUp !== undefined) setLevelSpeedUp(levelSpeedUp);
     });
 
-    socket.on('settings_updated', (newSensitivity) => {
-      setSensitivity(newSensitivity);
+    socket.on('settings_updated', (data) => {
+      if (data.sensitivity) setSensitivity(data.sensitivity);
+      if (data.levelSpeedUp !== undefined) setLevelSpeedUp(data.levelSpeedUp);
     });
 
     socket.on('player_left', (roomPlayers) => {
       setPlayers(roomPlayers);
     });
 
-    socket.on('game_started', ({ players, duration, sensitivity: startSensitivity }) => {
+    socket.on('game_started', ({ players, duration, sensitivity: startSensitivity, levelSpeedUp }) => {
       setPlayers(players);
       setGameStarted(true);
       setTimeRemaining(duration);
       setWinner(null);
       setOtherPlayers({});
       if (startSensitivity) setSensitivity(startSensitivity);
+      if (levelSpeedUp !== undefined) setLevelSpeedUp(levelSpeedUp);
     });
 
     socket.on('player_state_updated', ({ id, grid, score, gameOver }) => {
@@ -98,13 +103,18 @@ const MultiplayerLobby = () => {
       setError('Please enter your name');
       return;
     }
-    socket.emit('create_room', { roomName, playerName, sensitivity });
+    socket.emit('create_room', { roomName, playerName, sensitivity, levelSpeedUp });
   };
 
   const updateSensitivity = (key, value) => {
     const newSensitivity = { ...sensitivity, [key]: parseInt(value) };
     setSensitivity(newSensitivity);
-    socket.emit('update_settings', { roomId: currentRoom, sensitivity: newSensitivity });
+    socket.emit('update_settings', { roomId: currentRoom, sensitivity: newSensitivity, levelSpeedUp });
+  };
+
+  const updateLevelSpeedUp = (checked) => {
+    setLevelSpeedUp(checked);
+    socket.emit('update_settings', { roomId: currentRoom, sensitivity, levelSpeedUp: checked });
   };
 
   const joinRoom = (roomId) => {
@@ -145,6 +155,7 @@ const MultiplayerLobby = () => {
               onAttack={handleAttack}
               socket={socket}
               sensitivity={sensitivity}
+              levelSpeedUp={levelSpeedUp}
             />
           </div>
           <div className="flex flex-col gap-4">
@@ -257,6 +268,23 @@ const MultiplayerLobby = () => {
             <div className="flex-1 bg-gray-900/50 p-4 rounded-lg border-2 border-gray-700">
               <h3 className="text-sm mb-4 text-gray-400 uppercase tracking-wider font-bold">遊戲操作靈敏度設定</h3>
               <SensitivitySliders sensitivity={sensitivity} onChange={isHost ? updateSensitivity : null} />
+              
+              <div className="mt-6 pt-4 border-t border-gray-700">
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      id="roomLevelSpeedUp"
+                      className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-600 focus:ring-2 disabled:opacity-50"
+                      checked={levelSpeedUp}
+                      onChange={(e) => updateLevelSpeedUp(e.target.checked)}
+                      disabled={!isHost}
+                    />
+                    <label htmlFor="roomLevelSpeedUp" className="text-gray-300 text-sm select-none cursor-pointer">
+                      啟用等級加速 (Level Speed Up)
+                    </label>
+                  </div>
+              </div>
+
               {!isHost && <p className="text-[10px] text-gray-500 mt-4 italic">* 僅房主可調整設定</p>}
             </div>
           </div>

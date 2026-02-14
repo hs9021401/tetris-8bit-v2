@@ -4,7 +4,7 @@ import { audio } from './audio';
 
 const createEmptyGrid = () => Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 
-export const useTetris = (onStateChange, onAttack) => {
+export const useTetris = (onStateChange, onAttack, { levelSpeedUp = true } = {}) => {
   const gridRef = useRef(createEmptyGrid());
   const activePieceRef = useRef(null);
   const [grid, setGrid] = useState(gridRef.current);
@@ -138,8 +138,13 @@ export const useTetris = (onStateChange, onAttack) => {
       setScore(prevScore => {
         const newScore = prevScore + [0, 100, 300, 500, 800][linesCleared] * level;
         if (newScore > 0 && Math.floor(newScore / 1000) > Math.floor(prevScore / 1000)) {
-          setLevel(prev => prev + 1);
-          speedRef.current = Math.max(MIN_DROP_SPEED, INITIAL_DROP_SPEED - (level * SPEED_INCREMENT));
+          setLevel(prev => {
+              const nextLevel = prev + 1;
+              if (levelSpeedUp) {
+                  speedRef.current = Math.max(MIN_DROP_SPEED, INITIAL_DROP_SPEED - (nextLevel * SPEED_INCREMENT));
+              }
+              return nextLevel;
+          });
         }
         return newScore;
       });
@@ -171,7 +176,7 @@ export const useTetris = (onStateChange, onAttack) => {
       clearTimeout(lockTimerRef.current);
       lockTimerRef.current = null;
     }
-  }, [level, updateGrid, spawnPiece, incomingGarbage, onAttack, setActivePiece]);
+  }, [level, updateGrid, spawnPiece, incomingGarbage, onAttack, setActivePiece, levelSpeedUp]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {

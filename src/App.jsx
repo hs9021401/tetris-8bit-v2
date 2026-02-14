@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import Tetris from './Tetris'
 import MultiplayerLobby from './MultiplayerLobby'
+import LocalMultiplayer from './LocalMultiplayer'
 
 function App() {
-  const [mode, setMode] = useState(null); // 'single' or 'multi'
+  const [mode, setMode] = useState(null); // 'single', 'multi', 'local'
 
   if (mode === 'single') {
     return (
@@ -36,6 +37,10 @@ function App() {
     );
   }
 
+  if (mode === 'local') {
+    return <LocalMultiplayer onBack={() => setMode(null)} />;
+  }
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 font-mono text-white p-4">
       <h1 className="text-6xl font-bold mb-12 text-yellow-400 drop-shadow-[4px_4px_0_rgba(0,0,0,1)] text-center">
@@ -48,6 +53,13 @@ function App() {
           className="w-full py-4 bg-blue-600 hover:bg-blue-700 border-b-8 border-blue-900 active:border-b-0 active:mt-2 transition-all text-xl font-bold"
         >
           SINGLE PLAYER
+        </button>
+
+        <button 
+          onClick={() => setMode('local')}
+          className="w-full py-4 bg-purple-600 hover:bg-purple-700 border-b-8 border-purple-900 active:border-b-0 active:mt-2 transition-all text-xl font-bold"
+        >
+          LOCAL BATTLE
         </button>
         
         <button 

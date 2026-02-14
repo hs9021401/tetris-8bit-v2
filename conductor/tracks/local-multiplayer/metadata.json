@@ -1,0 +1,6 @@
+# Metadata - Local Multiplayer
+
+- Track ID: local-multiplayer
+- Status: Completed
+- Completion Date: 2026-02-14
+- Summary: Implemented Local Multiplayer mode. Refactored `Tetris` to support custom controls and expose methods via `forwardRef`. Created `LocalMultiplayer` component to manage split-screen state and attack relay. Added "LOCAL BATTLE" option to main menu.

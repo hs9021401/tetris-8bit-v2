@@ -1,0 +1,6 @@
+# Metadata - Level Speed Toggle
+
+- Track ID: level-speed-toggle
+- Status: Completed
+- Completion Date: 2026-02-14
+- Summary: Implemented a checkbox setting for "Level Speed Up" in the Multiplayer Lobby. When disabled by the host, the game speed remains constant regardless of level. The setting is synchronized across all players.

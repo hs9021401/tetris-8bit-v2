@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useTetris } from './useTetris';
 import { COLS, ROWS, BLOCK_SIZE, DEFAULT_SENSITIVITY } from './Constants';
 
-const Tetris = ({ multiplayer, onStateChange, onAttack, socket, sensitivity = DEFAULT_SENSITIVITY }) => {
+const Tetris = forwardRef(({ multiplayer, onStateChange, onAttack, socket, sensitivity = DEFAULT_SENSITIVITY, customControls, levelSpeedUp = true }, ref) => {
   const {
     grid,
     activePiece,
@@ -19,7 +19,11 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket, sensitivity = DE
     hardDrop,
     startGame,
     receiveAttack,
-  } = useTetris(onStateChange, onAttack);
+  } = useTetris(onStateChange, onAttack, { levelSpeedUp });
+
+  useImperativeHandle(ref, () => ({
+    receiveAttack
+  }));
 
   useEffect(() => {
     if (multiplayer && socket) {
@@ -43,46 +47,64 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket, sensitivity = DE
   useEffect(() => {
     const keysPressed = {};
     const lastActionTime = {
-      ArrowLeft: 0,
-      ArrowRight: 0,
-      ArrowDown: 0
+      left: 0,
+      right: 0,
+      down: 0
     };
 
     const { das, arr, softDrop } = sensitivity;
 
+    const defaultControls = {
+      left: ['ArrowLeft'],
+      right: ['ArrowRight'],
+      down: ['ArrowDown'],
+      rotate: ['ArrowUp'],
+      hardDrop: ['Space'],
+      pause: ['KeyP']
+    };
+
+    const controls = customControls || defaultControls;
+
+    const getAction = (code) => {
+      for (const [action, codes] of Object.entries(controls)) {
+        if (codes.includes(code)) return action;
+      }
+      return null;
+    };
+
     const handleKeyDown = (e) => {
       if (gameOver) return;
       
-      if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', ' '].includes(e.key)) {
+      const action = getAction(e.code);
+      if (action) {
         e.preventDefault();
       }
 
-      if (keysPressed[e.key]) return;
-      keysPressed[e.key] = true;
+      if (keysPressed[e.code]) return;
+      keysPressed[e.code] = true;
 
       const now = Date.now();
 
-      switch (e.key) {
-        case 'ArrowLeft':
+      switch (action) {
+        case 'left':
           movePiece(-1, 0);
-          lastActionTime['ArrowLeft'] = now;
+          lastActionTime['left'] = now;
           break;
-        case 'ArrowRight':
+        case 'right':
           movePiece(1, 0);
-          lastActionTime['ArrowRight'] = now;
+          lastActionTime['right'] = now;
           break;
-        case 'ArrowDown':
+        case 'down':
           movePiece(0, 1);
-          lastActionTime['ArrowDown'] = now;
+          lastActionTime['down'] = now;
           break;
-        case 'ArrowUp':
+        case 'rotate':
           rotatePiece();
           break;
-        case ' ':
+        case 'hardDrop':
           hardDrop();
           break;
-        case 'p':
-        case 'P':
+        case 'pause':
           if (!multiplayer) setPaused(prev => !prev);
           break;
         default:
@@ -91,7 +113,7 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket, sensitivity = DE
     };
 
     const handleKeyUp = (e) => {
-      keysPressed[e.key] = false;
+      keysPressed[e.code] = false;
     };
 
     const moveLoop = () => {
@@ -99,21 +121,25 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket, sensitivity = DE
 
       const now = Date.now();
       
-      ['ArrowLeft', 'ArrowRight'].forEach(key => {
-        if (keysPressed[key]) {
-          const elapsed = now - lastActionTime[key];
+      ['left', 'right'].forEach(action => {
+        const codes = controls[action];
+        const isPressed = codes.some(code => keysPressed[code]);
+        
+        if (isPressed) {
+          const elapsed = now - lastActionTime[action];
           if (elapsed >= das) {
-            movePiece(key === 'ArrowLeft' ? -1 : 1, 0);
-            lastActionTime[key] = now - (das - arr);
+            movePiece(action === 'left' ? -1 : 1, 0);
+            lastActionTime[action] = now - (das - arr);
           }
         }
       });
 
-      if (keysPressed['ArrowDown']) {
-        const elapsed = now - lastActionTime['ArrowDown'];
+      const downCodes = controls['down'];
+      if (downCodes.some(code => keysPressed[code])) {
+        const elapsed = now - lastActionTime['down'];
         if (elapsed >= softDrop) {
           movePiece(0, 1);
-          lastActionTime['ArrowDown'] = now;
+          lastActionTime['down'] = now;
         }
       }
     };
@@ -127,7 +153,7 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket, sensitivity = DE
       window.removeEventListener('keyup', handleKeyUp);
       clearInterval(interval);
     };
-  }, [movePiece, rotatePiece, hardDrop, gameOver, paused, setPaused, multiplayer, sensitivity]);
+  }, [movePiece, rotatePiece, hardDrop, gameOver, paused, setPaused, multiplayer, sensitivity, customControls]);
 
   const renderGrid = () => {
     return grid.map((row, y) =>
@@ -304,6 +330,7 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket, sensitivity = DE
       </div>
     </div>
   );
-};
+});
 
 export default Tetris;
+// Fixed forwardRef syntax
