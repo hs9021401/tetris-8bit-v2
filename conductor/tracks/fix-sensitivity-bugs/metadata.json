@@ -1,0 +1,9 @@
+# Metadata - Fix Sensitivity Bugs
+
+- Track ID: fix-sensitivity-bugs
+- Status: Completed
+- Completion Date: 2026-02-14
+- Summary: 
+    - Fixed host sensitivity editing: `room_created` now emits full room details (including `players` and `sensitivity`), ensuring `isHost` logic works immediately after creation.
+    - Fixed black screen issue: `player_joined` now uses a consistent object payload `{ players, sensitivity }` on both server and client, preventing crashes due to format mismatch.
+    - Added robustness check to `MiniGrid` to prevent crashes on invalid grid data.

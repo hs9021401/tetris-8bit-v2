@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { useTetris } from './useTetris';
-import { COLS, ROWS, BLOCK_SIZE } from './Constants';
+import { COLS, ROWS, BLOCK_SIZE, DEFAULT_SENSITIVITY } from './Constants';
 
-const Tetris = ({ multiplayer, onStateChange, onAttack, socket }) => {
+const Tetris = ({ multiplayer, onStateChange, onAttack, socket, sensitivity = DEFAULT_SENSITIVITY }) => {
   const {
     grid,
     activePiece,
@@ -12,6 +12,7 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket }) => {
     gameOver,
     paused,
     ghostPos,
+    incomingGarbage,
     setPaused,
     movePiece,
     rotatePiece,
@@ -47,9 +48,7 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket }) => {
       ArrowDown: 0
     };
 
-    const MOVE_DELAY = 100;
-    const MOVE_REPEAT = 20;
-    const SOFT_DROP_REPEAT = 15;
+    const { das, arr, softDrop } = sensitivity;
 
     const handleKeyDown = (e) => {
       if (gameOver) return;
@@ -103,16 +102,16 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket }) => {
       ['ArrowLeft', 'ArrowRight'].forEach(key => {
         if (keysPressed[key]) {
           const elapsed = now - lastActionTime[key];
-          if (elapsed >= MOVE_DELAY) {
+          if (elapsed >= das) {
             movePiece(key === 'ArrowLeft' ? -1 : 1, 0);
-            lastActionTime[key] = now - (MOVE_DELAY - MOVE_REPEAT);
+            lastActionTime[key] = now - (das - arr);
           }
         }
       });
 
       if (keysPressed['ArrowDown']) {
         const elapsed = now - lastActionTime['ArrowDown'];
-        if (elapsed >= SOFT_DROP_REPEAT) {
+        if (elapsed >= softDrop) {
           movePiece(0, 1);
           lastActionTime['ArrowDown'] = now;
         }
@@ -128,7 +127,7 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket }) => {
       window.removeEventListener('keyup', handleKeyUp);
       clearInterval(interval);
     };
-  }, [movePiece, rotatePiece, hardDrop, gameOver, paused, setPaused, multiplayer]);
+  }, [movePiece, rotatePiece, hardDrop, gameOver, paused, setPaused, multiplayer, sensitivity]);
 
   const renderGrid = () => {
     return grid.map((row, y) =>
@@ -230,33 +229,50 @@ const Tetris = ({ multiplayer, onStateChange, onAttack, socket }) => {
       {!multiplayer && <h1 className="text-4xl mb-8 pixel-text-shadow text-yellow-400">TETRIS 8-BIT</h1>}
       
       <div className="flex gap-8 scale-90 sm:scale-100">
-        <div 
-          className="relative pixel-border bg-gray-900 overflow-hidden"
-          style={{ width: COLS * BLOCK_SIZE, height: ROWS * BLOCK_SIZE }}
-        >
-          {renderGrid()}
-          {renderGhostPiece()}
-          {renderActivePiece()}
-          
-          {(gameOver || (!activePiece && !multiplayer)) && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-50">
-              {gameOver && <h2 className="text-2xl text-red-500 mb-4">GAME OVER</h2>}
-              {!multiplayer && (
-                <button 
-                  onClick={startGame}
-                  className="px-6 py-3 bg-green-600 hover:bg-green-500 pixel-border cursor-pointer transition-colors"
+        <div className="flex gap-2">
+            {multiplayer && (
+                <div 
+                    className="flex flex-col-reverse justify-start bg-gray-900 border border-gray-700 relative overflow-hidden" 
+                    style={{ width: 12, height: ROWS * BLOCK_SIZE }}
                 >
-                  {gameOver ? 'RETRY' : 'START'}
-                </button>
-              )}
-            </div>
-          )}
+                    <div 
+                        className="bg-red-600 w-full transition-all duration-300 ease-out absolute bottom-0" 
+                        style={{ height: `${Math.min(incomingGarbage, ROWS) * 100 / ROWS}%` }} 
+                    />
+                    {/* Grid lines for the bar */}
+                    {Array.from({ length: ROWS }).map((_, i) => (
+                        <div key={i} className="w-full border-t border-black/20" style={{ height: `${100/ROWS}%` }} />
+                    ))}
+                </div>
+            )}
+            <div 
+            className="relative pixel-border bg-gray-900 overflow-hidden"
+            style={{ width: COLS * BLOCK_SIZE, height: ROWS * BLOCK_SIZE }}
+            >
+            {renderGrid()}
+            {renderGhostPiece()}
+            {renderActivePiece()}
+            
+            {(gameOver || (!activePiece && !multiplayer)) && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-50">
+                {gameOver && <h2 className="text-2xl text-red-500 mb-4">GAME OVER</h2>}
+                {!multiplayer && (
+                    <button 
+                    onClick={startGame}
+                    className="px-6 py-3 bg-green-600 hover:bg-green-500 pixel-border cursor-pointer transition-colors"
+                    >
+                    {gameOver ? 'RETRY' : 'START'}
+                    </button>
+                )}
+                </div>
+            )}
 
-          {paused && !gameOver && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-50">
-              <h2 className="text-2xl text-yellow-400">PAUSED</h2>
+            {paused && !gameOver && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-50">
+                <h2 className="text-2xl text-yellow-400">PAUSED</h2>
+                </div>
+            )}
             </div>
-          )}
         </div>
 
         <div className="flex flex-col gap-6">

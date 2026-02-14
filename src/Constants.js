@@ -64,3 +64,9 @@ export const TETROMINOS = {
 export const INITIAL_DROP_SPEED = 800;
 export const MIN_DROP_SPEED = 100;
 export const SPEED_INCREMENT = 50;
+
+export const DEFAULT_SENSITIVITY = {
+  das: 100,
+  arr: 20,
+  softDrop: 15,
+};

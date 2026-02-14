@@ -27,7 +27,7 @@ io.on('connection', (socket) => {
     socket.emit('lobby_rooms', roomsList);
   });
 
-  socket.on('create_room', ({ roomName, playerName }) => {
+  socket.on('create_room', ({ roomName, playerName, sensitivity }) => {
     const roomId = roomName || `Room_${Math.random().toString(36).substr(2, 5)}`;
     if (ROOMS.has(roomId)) {
       socket.emit('error', 'Room already exists');
@@ -41,13 +41,22 @@ io.on('connection', (socket) => {
       players: [{ id: socket.id, name: playerName, grid: null, score: 0, gameOver: false }],
       status: 'waiting',
       timer: GAME_DURATION,
-      startTime: null
+      startTime: null,
+      sensitivity: sensitivity || { das: 100, arr: 20, softDrop: 15 }
     };
 
     ROOMS.set(roomId, room);
     socket.join(roomId);
-    socket.emit('room_created', roomId);
+    socket.emit('room_created', { roomId, players: room.players, sensitivity: room.sensitivity });
     io.emit('lobby_rooms', getLobbyRooms());
+  });
+
+  socket.on('update_settings', ({ roomId, sensitivity }) => {
+    const room = ROOMS.get(roomId);
+    if (room && room.host === socket.id && room.status === 'waiting') {
+      room.sensitivity = sensitivity;
+      io.to(roomId).emit('settings_updated', room.sensitivity);
+    }
   });
 
   socket.on('join_room', ({ roomId, playerName }) => {
@@ -69,7 +78,7 @@ io.on('connection', (socket) => {
 
     room.players.push({ id: socket.id, name: playerName, grid: null, score: 0, gameOver: false });
     socket.join(roomId);
-    io.to(roomId).emit('player_joined', room.players);
+    io.to(roomId).emit('player_joined', { players: room.players, sensitivity: room.sensitivity });
     io.emit('lobby_rooms', getLobbyRooms());
   });
 
@@ -79,7 +88,11 @@ io.on('connection', (socket) => {
       room.status = 'playing';
       room.startTime = Date.now();
       room.timer = GAME_DURATION;
-      io.to(roomId).emit('game_started', { players: room.players, duration: GAME_DURATION });
+      io.to(roomId).emit('game_started', { 
+        players: room.players, 
+        duration: GAME_DURATION,
+        sensitivity: room.sensitivity
+      });
       
       const interval = setInterval(() => {
         if (!ROOMS.has(roomId) || room.status !== 'playing') {

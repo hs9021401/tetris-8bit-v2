@@ -6,8 +6,9 @@ const createEmptyGrid = () => Array.from({ length: ROWS }, () => Array(COLS).fil
 
 export const useTetris = (onStateChange, onAttack) => {
   const gridRef = useRef(createEmptyGrid());
+  const activePieceRef = useRef(null);
   const [grid, setGrid] = useState(gridRef.current);
-  const [activePiece, setActivePiece] = useState(null);
+  const [activePiece, setActivePieceState] = useState(null);
   const [nextPiece, setNextPiece] = useState(null);
   const [score, setScore] = useState(0);
   const [level, setLevel] = useState(1);
@@ -15,9 +16,17 @@ export const useTetris = (onStateChange, onAttack) => {
   const [paused, setPaused] = useState(false);
   const [ghostPos, setGhostPos] = useState({ x: 0, y: 0 });
   const [incomingGarbage, setIncomingGarbage] = useState(0);
+  const isLockingRef = useRef(false);
+  const isLandingRef = useRef(false);
+  const lockTimerRef = useRef(null);
   
   const timerRef = useRef(null);
   const speedRef = useRef(INITIAL_DROP_SPEED);
+
+  const setActivePiece = useCallback((piece) => {
+    activePieceRef.current = piece;
+    setActivePieceState(piece);
+  }, []);
 
   const updateGrid = useCallback((newGrid) => {
     gridRef.current = newGrid;
@@ -73,19 +82,19 @@ export const useTetris = (onStateChange, onAttack) => {
 
   const spawnPiece = useCallback((currentGrid) => {
     const gridToUse = currentGrid || gridRef.current;
-    setActivePiece(() => {
-      const piece = nextPiece || getRandomPiece();
-      setNextPiece(getRandomPiece());
-      
-      if (checkCollision(piece.pos, piece.shape, gridToUse)) {
-        setGameOver(true);
-        audio.stopBGM();
-        audio.playGameOver();
-        return null;
-      }
-      return piece;
-    });
-  }, [nextPiece, getRandomPiece, checkCollision]);
+    const piece = nextPiece || getRandomPiece();
+    setNextPiece(getRandomPiece());
+    
+    if (checkCollision(piece.pos, piece.shape, gridToUse)) {
+      setGameOver(true);
+      audio.stopBGM();
+      audio.playGameOver();
+      setActivePiece(null);
+      return null;
+    }
+    setActivePiece(piece);
+    return piece;
+  }, [nextPiece, getRandomPiece, checkCollision, setActivePiece]);
 
   useEffect(() => {
     if (activePiece) {
@@ -93,19 +102,12 @@ export const useTetris = (onStateChange, onAttack) => {
     }
   }, [activePiece, grid, updateGhostPos]);
 
-  const addGarbageLines = useCallback((lines) => {
-    const newGrid = gridRef.current.slice(lines);
-    for (let i = 0; i < lines; i++) {
-      const garbageRow = Array(COLS).fill('gray');
-      const emptyCol = Math.floor(Math.random() * COLS);
-      garbageRow[emptyCol] = 0;
-      newGrid.push(garbageRow);
-    }
-    updateGrid(newGrid);
-  }, [updateGrid]);
-
   const lockPiece = useCallback((pieceToLock) => {
-    if (!pieceToLock) return;
+    if (!pieceToLock || isLockingRef.current) return;
+    isLockingRef.current = true;
+    
+    // Clear active piece immediately to prevent further movement
+    setActivePiece(null);
 
     let newGrid = gridRef.current.map(row => [...row]);
     pieceToLock.shape.forEach((row, y) => {
@@ -113,7 +115,7 @@ export const useTetris = (onStateChange, onAttack) => {
         if (value !== 0) {
           const gridY = pieceToLock.pos.y + y;
           const gridX = pieceToLock.pos.x + x;
-          if (gridY >= 0) {
+          if (gridY >= 0 && gridY < ROWS && gridX >= 0 && gridX < COLS) {
             newGrid[gridY][gridX] = pieceToLock.color;
           }
         }
@@ -135,7 +137,7 @@ export const useTetris = (onStateChange, onAttack) => {
     if (linesCleared > 0) {
       setScore(prevScore => {
         const newScore = prevScore + [0, 100, 300, 500, 800][linesCleared] * level;
-        if (newScore > 0 && newScore % 1000 === 0) {
+        if (newScore > 0 && Math.floor(newScore / 1000) > Math.floor(prevScore / 1000)) {
           setLevel(prev => prev + 1);
           speedRef.current = Math.max(MIN_DROP_SPEED, INITIAL_DROP_SPEED - (level * SPEED_INCREMENT));
         }
@@ -150,7 +152,7 @@ export const useTetris = (onStateChange, onAttack) => {
     // Process incoming garbage if any
     let finalGrid = filteredGrid;
     if (incomingGarbage > 0) {
-        const linesToAdd = incomingGarbage;
+        const linesToAdd = Math.min(incomingGarbage, ROWS);
         finalGrid = filteredGrid.slice(linesToAdd);
         for (let i = 0; i < linesToAdd; i++) {
             const garbageRow = Array(COLS).fill('gray');
@@ -158,12 +160,18 @@ export const useTetris = (onStateChange, onAttack) => {
             garbageRow[emptyCol] = 0;
             finalGrid.push(garbageRow);
         }
-        setIncomingGarbage(0);
+        setIncomingGarbage(prev => Math.max(0, prev - linesToAdd));
     }
     
     updateGrid(finalGrid);
     spawnPiece(finalGrid);
-  }, [level, updateGrid, spawnPiece, incomingGarbage, onAttack]);
+    isLockingRef.current = false;
+    isLandingRef.current = false;
+    if (lockTimerRef.current) {
+      clearTimeout(lockTimerRef.current);
+      lockTimerRef.current = null;
+    }
+  }, [level, updateGrid, spawnPiece, incomingGarbage, onAttack, setActivePiece]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -175,60 +183,129 @@ export const useTetris = (onStateChange, onAttack) => {
   }, [grid, score, gameOver, onStateChange]);
 
   const movePiece = useCallback((dx, dy) => {
-    if (gameOver || paused) return false;
+    if (gameOver || paused || !activePieceRef.current) return false;
     
-    let canMove = true;
-    setActivePiece(prev => {
-        if (!prev) return null;
-        const newPos = { x: prev.pos.x + dx, y: prev.pos.y + dy };
-        if (checkCollision(newPos, prev.shape)) {
-          canMove = false;
-          return prev;
+    const currentPiece = activePieceRef.current;
+    const newPos = { x: currentPiece.pos.x + dx, y: currentPiece.pos.y + dy };
+    
+    // Check collision
+    if (checkCollision(newPos, currentPiece.shape)) {
+      if (dy > 0) {
+        // Landed on something
+        if (!lockTimerRef.current) {
+            isLandingRef.current = true;
+            lockTimerRef.current = setTimeout(() => {
+                const piece = activePieceRef.current;
+                if (piece && !paused && !gameOver) {
+                    if (checkCollision({ x: piece.pos.x, y: piece.pos.y + 1 }, piece.shape)) {
+                        lockPiece(piece);
+                    } else {
+                        lockTimerRef.current = null;
+                        isLandingRef.current = false;
+                    }
+                }
+            }, 500);
         }
-        
-        if (dx !== 0) audio.playMove();
-        return { ...prev, pos: newPos };
-    });
-
-    // Wait, the 'canMove' flag will be correct because React executes the updater synchronously 
-    // when it's called outside of a render phase (like in an event handler).
-    // HOWEVER, if we are at the bottom and dy > 0, we should lock.
-    if (!canMove && dy > 0) {
-      setActivePiece(prev => {
-        if (prev) lockPiece(prev);
-        return null;
-      });
+      }
+      return false;
     }
-    return canMove;
-  }, [checkCollision, gameOver, lockPiece, paused]);
+    
+    // Move successful
+    if (dy > 0) {
+        // Moving down successfully means we are not landing/locked yet
+        if (lockTimerRef.current) {
+            clearTimeout(lockTimerRef.current);
+            lockTimerRef.current = null;
+        }
+        isLandingRef.current = false;
+    } else if (isLandingRef.current) {
+        // Moving sideways while landing resets the timer (Infinity Rule)
+        if (lockTimerRef.current) {
+            clearTimeout(lockTimerRef.current);
+            lockTimerRef.current = setTimeout(() => {
+                const piece = activePieceRef.current;
+                if (piece && !paused && !gameOver) {
+                    if (checkCollision({ x: piece.pos.x, y: piece.pos.y + 1 }, piece.shape)) {
+                        lockPiece(piece);
+                    } else {
+                        lockTimerRef.current = null;
+                        isLandingRef.current = false;
+                    }
+                }
+            }, 500);
+        }
+    }
+
+    if (dx !== 0) audio.playMove();
+    setActivePiece({ ...currentPiece, pos: newPos });
+    return true;
+  }, [checkCollision, gameOver, lockPiece, paused, setActivePiece]);
 
   const rotatePiece = useCallback(() => {
-    if (gameOver || paused) return;
+    if (gameOver || paused || !activePieceRef.current) return;
     
-    setActivePiece(prev => {
-        if (!prev) return null;
-        const rotatedShape = rotate(prev.shape);
-        if (!checkCollision(prev.pos, rotatedShape)) {
-          const updatedPiece = { ...prev, shape: rotatedShape };
-          audio.playRotate();
-          return updatedPiece;
+    const currentPiece = activePieceRef.current;
+    const rotatedShape = rotate(currentPiece.shape);
+    
+    // Wall Kicks (Basic SRS-like implementation)
+    // Offsets: [x, y]
+    const kicks = [
+      { x: 0, y: 0 },   // Basic rotation
+      { x: 1, y: 0 },   // Kick right
+      { x: -1, y: 0 },  // Kick left
+      { x: 0, y: -1 },  // Kick up (floor kick)
+      { x: 2, y: 0 },   // Kick right 2 (for I piece mostly)
+      { x: -2, y: 0 },  // Kick left 2
+    ];
+
+    for (const kick of kicks) {
+      const kickedPos = { 
+        x: currentPiece.pos.x + kick.x, 
+        y: currentPiece.pos.y + kick.y 
+      };
+
+      if (!checkCollision(kickedPos, rotatedShape)) {
+        const updatedPiece = { ...currentPiece, shape: rotatedShape, pos: kickedPos };
+        audio.playRotate();
+        setActivePiece(updatedPiece);
+        
+        // Reset lock timer if piece is landing (infinity ruleish)
+        if (isLandingRef.current && lockTimerRef.current) {
+            clearTimeout(lockTimerRef.current);
+            lockTimerRef.current = setTimeout(() => {
+                const piece = activePieceRef.current;
+                if (piece && !paused && !gameOver) {
+                    if (checkCollision({ x: piece.pos.x, y: piece.pos.y + 1 }, piece.shape)) {
+                        lockPiece(piece);
+                    } else {
+                        lockTimerRef.current = null;
+                        isLandingRef.current = false;
+                    }
+                }
+            }, 500);
         }
-        return prev;
-    });
-  }, [checkCollision, gameOver, paused]);
+        return;
+      }
+    }
+  }, [checkCollision, gameOver, paused, setActivePiece, lockPiece]);
 
   const hardDrop = useCallback(() => {
-    if (gameOver || paused) return;
-    setActivePiece(prev => {
-        if (!prev) return null;
-        let newY = prev.pos.y;
-        while (!checkCollision({ x: prev.pos.x, y: newY + 1 }, prev.shape)) {
-          newY++;
-        }
-        const droppedPiece = { ...prev, pos: { ...prev.pos, y: newY } };
-        lockPiece(droppedPiece);
-        return null;
-    });
+    if (gameOver || paused || !activePieceRef.current) return;
+    
+    // Clear any existing lock timer to ensure immediate lock
+    if (lockTimerRef.current) {
+        clearTimeout(lockTimerRef.current);
+        lockTimerRef.current = null;
+    }
+    isLandingRef.current = false;
+    
+    const currentPiece = activePieceRef.current;
+    let newY = currentPiece.pos.y;
+    while (!checkCollision({ x: currentPiece.pos.x, y: newY + 1 }, currentPiece.shape)) {
+      newY++;
+    }
+    const droppedPiece = { ...currentPiece, pos: { ...currentPiece.pos, y: newY } };
+    lockPiece(droppedPiece);
   }, [checkCollision, gameOver, lockPiece, paused]);
 
   const drop = useCallback(() => {
@@ -265,7 +342,7 @@ export const useTetris = (onStateChange, onAttack) => {
     const firstPiece = getRandomPiece();
     setActivePiece(firstPiece);
     setNextPiece(getRandomPiece());
-  }, [getRandomPiece, updateGrid]);
+  }, [getRandomPiece, updateGrid, setActivePiece]);
 
   const receiveAttack = useCallback((lines) => {
       setIncomingGarbage(prev => prev + lines);

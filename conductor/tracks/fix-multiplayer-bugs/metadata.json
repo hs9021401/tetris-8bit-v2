@@ -1,0 +1,6 @@
+# Metadata - Fix Multiplayer Bugs
+
+- Track ID: fix-multiplayer-bugs
+- Status: Completed
+- Completion Date: 2026-02-14
+- Summary: Refactored useTetris.js to use activePieceRef and separated side effects from state updaters, fixing hard drop ghost piece materialization and premature game over when holding down.

@@ -1,0 +1,6 @@
+# Metadata - Gameplay Refinements
+
+- Track ID: gameplay-refinements
+- Status: Completed
+- Completion Date: 2026-02-14
+- Summary: Implemented Wall Kicks (Basic SRS) to allow rotation near walls. Implemented Lock Delay (Infinity Rule style) to allow sliding pieces into gaps before locking. Added unit tests for both features.

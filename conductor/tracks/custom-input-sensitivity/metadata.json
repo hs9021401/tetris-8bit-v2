@@ -1,0 +1,6 @@
+# Metadata - Custom Input Sensitivity
+
+- Track ID: custom-input-sensitivity
+- Status: Completed
+- Completion Date: 2026-02-14
+- Summary: Implemented adjustable input sensitivity (DAS, ARR, Soft Drop) for the room host. Included localized Chinese UI with clear descriptions. Synchronized settings via socket.io.

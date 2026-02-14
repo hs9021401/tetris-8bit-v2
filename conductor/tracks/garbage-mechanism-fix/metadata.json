@@ -1,0 +1,6 @@
+# Metadata - Garbage Mechanism Fix
+
+- Track ID: garbage-mechanism-fix
+- Status: Completed
+- Completion Date: 2026-02-14
+- Summary: Verified garbage mechanism logic with unit tests. Refined lockPiece to safely handle garbage lines. Added a visual Garbage Bar (red meter) to the UI to provide feedback on incoming attacks.
