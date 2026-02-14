@@ -4,3 +4,21 @@
 - Verification: Tested with automated browser (OpenClaw browser), successfully created rooms.
 - Branch: fix/lobby-create-button (merged to main)
 - Date: 2026-02-14
+
+# PIECE STUCK & AUTOMATION SUCCESS
+- Bug: Piece would "stick" or lock prematurely during rapid horizontal movement.
+- Diagnosis: 
+    1. `movePiece` used a local variable set inside an asynchronous state updater to determine if it should lock the piece.
+    2. `updateGhostPos` was being called inside the state updater, triggering secondary state updates during reconciliation.
+    3. Rapid input could lead to race conditions or batched updates where `moved` was incorrectly `false`.
+- Fix:
+    1. Cleaned up `movePiece` logic to ensure `canMove` is correctly captured from the updater logic.
+    2. Removed secondary state updates from inside `setActivePiece` updaters.
+    3. Introduced a `useEffect` to derive ghost position and other side effects based on `activePiece` changes.
+    4. Throttled `onStateChange` (socket sync) to 100ms to prevent excessive sync calls from interfering with local movement logic.
+- Automation:
+    1. Installed Vitest and React Testing Library.
+    2. Wrote `src/useTetris.test.jsx` simulating rapid movement and edge-case collisions.
+    3. Verified that the bug is fixed and pieces no longer lock prematurely.
+- Branch: fix/stuck-on-move-and-tests (merged to main)
+- Date: 2026-02-14
